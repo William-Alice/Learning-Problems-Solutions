@@ -16,11 +16,12 @@ spring-boot-starter-test 内部的 junit-jupiter 升级到 6.x 版本，但是 i
 
 ### 解决思路
 
-升级 idea 版本或降级依赖版本，统一到 5.x 版本）
+1.升级 idea 版本或降级依赖版本，统一到 5.x 版本）
+2.springboot 框架选择较低版本（如 3.5.8）
 
 ### 采取方案
 
-覆盖处理 spring-boot-starter-test 内部的 junit-jupiter 到 5.x 版本
+1.覆盖处理 spring-boot-starter-test 内部的 junit-jupiter 到 5.x 版本
 
 <dependency>
 <groupId>redis.clients</groupId>
@@ -73,5 +74,7 @@ spring-boot-starter-test 内部的 junit-jupiter 升级到 6.x 版本，但是 i
     <artifactId>spring-boot-starter-test</artifactId>
     <version>3.5.7</version>
 </dependency>
+
+2.或者新建项目,选择 springboot 框架 3.5.8 版本
 
 ### 关键：指定的依赖要在被覆盖的依赖之前定义
