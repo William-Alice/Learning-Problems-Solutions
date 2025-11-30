@@ -80,3 +80,51 @@ Redis 中缓存索引的核心是存储 “索引维度（查询条件）→ 目
    活动上线时批量缓存活动相关数据（比如秒杀商品列表）；
    业务逻辑中批量查询并缓存数据（比如一次查询 10 个店铺并缓存）。
    这些场景下的 key 如果不设置随机过期时间，都可能出现集中过期的风险。
+
+### 缓存击穿问题及其解决方案
+
+![alt text](images/1764472826504.png)
+![alt text](images/1764472870305.png)
+![alt text](images/1764472890765.png)
+
+### 自定义变量（本地锁）：仅适用于单体应用 / 单进程
+
+如果系统是单体部署（只有一个服务实例），所有并发请求都在同一个 JVM 进程内，用自定义变量（比如 AtomicBoolean、synchronized、ReentrantLock）实现锁是最优选择。
+
+优点与局限
+
+1. 优点：无网络开销、速度极快、实现简单；
+2. 局限：仅在单个进程内有效—— 如果系统是集群部署（多个服务实例），每个实例都有自己的本地变量，锁会失效（比如实例 A 拿到锁，实例 B 仍能进入临界区，导致并发问题）。
+
+### Redis 的 setnx（分布式锁）：适用于分布式 / 集群环境
+
+如果系统是集群部署（多个服务实例）、跨进程 / 跨机器需要互斥，必须用 Redis 的 setnx（或 Redlock）实现分布式锁 —— 这是保证跨节点并发安全的唯一方式。
+
+优点与注意事项
+
+1. 优点：跨进程 / 跨机器有效，支持集群环境的并发控制；
+2. 注意事项：
+   必须设置过期时间（避免服务宕机导致死锁）；
+   释放锁时要用原子操作（Lua 脚本），防止误删其他线程的锁；
+   需处理锁超时、续期（如 Redisson 的 watch dog 机制）等问题
+
+###
+
+1. 先明确：setIfAbsent 的返回值是「包装类 Boolean」
+
+   StringRedisTemplate 的 setIfAbsent 方法返回的是包装类 Boolean（不是基本类型 boolean），而包装类是可以为 null 的：
+   正常情况下，Redis 操作成功会返回 Boolean.TRUE（获取锁成功）或 Boolean.FALSE（获取锁失败）；
+   但如果 Redis 连接异常、操作超时等，这个方法可能返回 null（虽然 Spring Data Redis 会尽量处理，但极端场景下存在 null 的可能性）。
+
+2. 直接返回 Boolean 的风险：NullPointerException
+   如果直接返回 Boolean（包装类），调用这个 tryLock 方法的地方，若直接用 if(tryLock(...))判断：
+   java
+   运行
+
+```// 若 tryLock 返回 null，这里自动拆箱会抛 NPE
+if (tryLock("lock:shop:1")) {
+// ...
+}
+```
+
+    因为包装类 Boolean 自动拆箱为基本类型 boolean 时，如果包装类是 null，会直接抛出 NullPointerException，导致程序崩溃。
