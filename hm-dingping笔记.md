@@ -108,7 +108,7 @@ Redis 中缓存索引的核心是存储 “索引维度（查询条件）→ 目
    释放锁时要用原子操作（Lua 脚本），防止误删其他线程的锁；
    需处理锁超时、续期（如 Redisson 的 watch dog 机制）等问题
 
-###
+### Boolean
 
 1. 先明确：setIfAbsent 的返回值是「包装类 Boolean」
 
@@ -128,3 +128,26 @@ if (tryLock("lock:shop:1")) {
 ```
 
     因为包装类 Boolean 自动拆箱为基本类型 boolean 时，如果包装类是 null，会直接抛出 NullPointerException，导致程序崩溃。
+
+### Object 改成泛型
+
+```
+package com.hmdp.utils;
+
+import lombok.Data;
+import java.time.LocalDateTime;
+
+// 泛型类：T 代表业务数据的类型（如 Shop、User 等）
+@Data
+public class RedisData<T> {
+private LocalDateTime expireTime; // 逻辑过期时间
+private T data; // 泛型业务数据（替代原 Object 类型）
+}
+```
+
+#### 改造的核心好处
+
+1. 类型安全：编译时就能检查业务数据类型（如传入 User 而非 Shop 会直接报错），避免运行时 ClassCastException；
+2. 代码简洁：无需手动将 Object 强转为 JSONObject 再转 Shop，直接通过 redisData.getData()获取目标类型；
+3. 复用性强：如果后续需要给 User、Order 等实体做逻辑过期缓存，直接复用 RedisData<T>（如 RedisData<User>、RedisData<Order>），无需新增工具类；
+4. 可读性高：代码中明确体现 “缓存的业务数据类型”，后续维护更清晰。
